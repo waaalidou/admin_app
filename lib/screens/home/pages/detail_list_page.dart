@@ -10,6 +10,8 @@ import 'package:project/models/volunteering_enrollment_model.dart';
 import 'package:project/screens/home/pages/club_edit_page.dart';
 import 'package:project/screens/home/pages/volunteering_opportunity_edit_page.dart';
 import 'package:project/screens/home/pages/volunteering_enrollment_edit_page.dart';
+import 'package:project/screens/home/pages/student_edit_page.dart';
+import 'package:project/screens/home/pages/teacher_edit_page.dart';
 
 class DetailListPage extends StatefulWidget {
   final String title;
@@ -85,6 +87,12 @@ class _DetailListPageState extends State<DetailListPage> {
       case 'clubs':
         editPage = ClubEditPage(club: item as ClubModel);
         break;
+      case 'students':
+        editPage = StudentEditPage(student: item as StudentModel);
+        break;
+      case 'teachers':
+        editPage = TeacherEditPage(teacher: item as TeacherModel);
+        break;
       case 'volunteering_opportunities':
         editPage = VolunteeringOpportunityEditPage(opportunity: item as VolunteeringOpportunityModel);
         break;
@@ -112,6 +120,12 @@ class _DetailListPageState extends State<DetailListPage> {
     switch (widget.type) {
       case 'clubs':
         editPage = const ClubEditPage();
+        break;
+      case 'students':
+        editPage = const StudentEditPage();
+        break;
+      case 'teachers':
+        editPage = const TeacherEditPage();
         break;
       case 'volunteering_opportunities':
         editPage = const VolunteeringOpportunityEditPage();
