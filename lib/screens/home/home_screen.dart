@@ -24,6 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // AuthGate handles authentication routing
+    // This screen is only shown when user is authenticated
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,

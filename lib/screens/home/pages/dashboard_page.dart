@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project/utils/app_colors.dart';
 import 'package:project/screens/auth/services/auth_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});

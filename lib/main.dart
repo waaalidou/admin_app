@@ -30,6 +30,8 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const AuthGate(),
+      // Prevent back button from navigating to protected screens
+      debugShowCheckedModeBanner: false,
     );
   }
 }
