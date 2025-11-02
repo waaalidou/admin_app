@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project/screens/home/pages/dashboard_page.dart';
 import 'package:project/screens/home/pages/map_page.dart';
-import 'package:project/screens/home/pages/statistics_page.dart';
 import 'package:project/screens/home/pages/profile_page.dart';
 import 'package:project/utils/app_colors.dart';
 
@@ -18,7 +17,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _pages = [
     const DashboardPage(),
     const MapPage(),
-    const StatisticsPage(),
     const ProfilePage(),
   ];
 
@@ -53,11 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.map_outlined),
             activeIcon: Icon(Icons.map),
             label: 'Map',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            activeIcon: Icon(Icons.bar_chart),
-            label: 'Statistics',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
