@@ -95,6 +95,59 @@ class DatabaseService {
     }
   }
 
+  /// Create or update student from current logged-in user
+  /// This is called automatically on login
+  Future<StudentModel?> createStudentFromCurrentUser() async {
+    try {
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        return null; // Not logged in, nothing to do
+      }
+
+      final userEmail = currentUser.email ?? '';
+
+      // Check if student already exists with this email
+      final existingStudents = await supabase
+          .from('students')
+          .select()
+          .eq('email', userEmail)
+          .limit(1);
+
+      // If student already exists, return null (don't create duplicate)
+      if (existingStudents.isNotEmpty && existingStudents.length > 0) {
+        return null;
+      }
+
+      // Extract name from email (before @) or use email as name
+      final userName = userEmail.split('@').first;
+
+      // Create new student from logged-in user
+      final studentData = <String, dynamic>{
+        'name': userName,
+        'email': userEmail,
+        'phone': null,
+        'course_id': null,
+      };
+
+      final response = await supabase
+          .from('students')
+          .insert(studentData)
+          .select()
+          .single();
+
+      if (response.isEmpty) {
+        return null;
+      }
+
+      return StudentModel.fromJson(response);
+    } catch (e) {
+      // Silently fail - table might not exist yet or other issues
+      // This is expected behavior when tables don't exist
+      print('Note: Could not create student from login: $e');
+      return null;
+    }
+  }
+
   // ==================== TEACHERS ====================
 
   /// Get all teachers
@@ -265,30 +318,96 @@ class DatabaseService {
   /// Add a new student
   Future<StudentModel> addStudent(StudentModel student) async {
     try {
+      // Verify user is authenticated
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      // Only send the fields that are required/editable, let DB handle id and timestamps
+      final studentData = <String, dynamic>{
+        'name': student.name,
+        'email': student.email,
+        'phone': student.phone,
+        'course_id': student.courseId,
+      };
+      
       final response = await supabase
           .from('students')
-          .insert(student.toJson())
+          .insert(studentData)
           .select()
           .single();
 
+      if (response.isEmpty) {
+        throw Exception('Failed to insert student: No response from database');
+      }
+
       return StudentModel.fromJson(response);
     } catch (e) {
-      throw Exception('Error adding student: $e');
+      final errorString = e.toString();
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('Table "students" does not exist in the database. Please create it first in Supabase.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "students" table\n'
+            '3. Enable INSERT policy for authenticated users\n'
+            '4. Make sure the policy allows: INSERT operations\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: $errorString');
+      } else {
+        throw Exception('Error adding student: $errorString');
+      }
     }
   }
 
   /// Add a new teacher
   Future<TeacherModel> addTeacher(TeacherModel teacher) async {
     try {
+      // Verify user is authenticated
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      // Only send the fields that are required/editable, let DB handle id and timestamps
+      final teacherData = <String, dynamic>{
+        'name': teacher.name,
+        'email': teacher.email,
+        'phone': teacher.phone,
+        'specialization': teacher.specialization,
+      };
+      
       final response = await supabase
           .from('teachers')
-          .insert(teacher.toJson())
+          .insert(teacherData)
           .select()
           .single();
 
+      if (response.isEmpty) {
+        throw Exception('Failed to insert teacher: No response from database');
+      }
+
       return TeacherModel.fromJson(response);
     } catch (e) {
-      throw Exception('Error adding teacher: $e');
+      final errorString = e.toString();
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('Table "teachers" does not exist in the database. Please create it first in Supabase.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "teachers" table\n'
+            '3. Enable INSERT policy for authenticated users\n'
+            '4. Make sure the policy allows: INSERT operations\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: $errorString');
+      } else {
+        throw Exception('Error adding teacher: $errorString');
+      }
     }
   }
 
@@ -534,32 +653,208 @@ class DatabaseService {
   /// Update a student
   Future<StudentModel> updateStudent(StudentModel student) async {
     try {
+      // Verify user is authenticated
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      // Validate ID is provided
+      if (student.id.isEmpty || student.id == 'temp') {
+        throw Exception('Invalid student ID. Cannot update.');
+      }
+
+      // Prepare update data - exclude id, created_at (let DB handle timestamps)
+      final studentData = <String, dynamic>{
+        'name': student.name,
+        'email': student.email,
+        'phone': student.phone,
+        'course_id': student.courseId,
+      };
+      
+      // Update directly using the ID from the model
       final response = await supabase
           .from('students')
-          .update(student.toJson())
+          .update(studentData)
           .eq('id', student.id)
           .select()
           .single();
 
+      if (response.isEmpty) {
+        throw Exception('Failed to update student: Update returned no data');
+      }
+
       return StudentModel.fromJson(response);
     } catch (e) {
-      throw Exception('Error updating student: $e');
+      final errorString = e.toString();
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('Table "students" does not exist in the database. Please create it first in Supabase.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "students" table\n'
+            '3. Enable UPDATE policy for authenticated users\n'
+            '4. Make sure the policy allows: UPDATE operations\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Student not found with id: ${student.id}. Cannot update.');
+      } else {
+        throw Exception('Error updating student: $errorString');
+      }
     }
   }
 
   /// Update a teacher
   Future<TeacherModel> updateTeacher(TeacherModel teacher) async {
     try {
+      // Verify user is authenticated
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      // Validate ID is provided
+      if (teacher.id.isEmpty || teacher.id == 'temp') {
+        throw Exception('Invalid teacher ID. Cannot update.');
+      }
+
+      // Prepare update data - exclude id, created_at (let DB handle timestamps)
+      final teacherData = <String, dynamic>{
+        'name': teacher.name,
+        'email': teacher.email,
+        'phone': teacher.phone,
+        'specialization': teacher.specialization,
+      };
+      
+      // Update directly using the ID from the model
       final response = await supabase
           .from('teachers')
-          .update(teacher.toJson())
+          .update(teacherData)
           .eq('id', teacher.id)
           .select()
           .single();
 
+      if (response.isEmpty) {
+        throw Exception('Failed to update teacher: Update returned no data');
+      }
+
       return TeacherModel.fromJson(response);
     } catch (e) {
-      throw Exception('Error updating teacher: $e');
+      final errorString = e.toString();
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('Table "teachers" does not exist in the database. Please create it first in Supabase.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "teachers" table\n'
+            '3. Enable UPDATE policy for authenticated users\n'
+            '4. Make sure the policy allows: UPDATE operations\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Teacher not found with id: ${teacher.id}. Cannot update.');
+      } else {
+        throw Exception('Error updating teacher: $errorString');
+      }
+    }
+  }
+
+  /// Delete a student
+  Future<void> deleteStudent(String studentId) async {
+    try {
+      // Verify user is authenticated
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      // Validate ID is provided
+      if (studentId.isEmpty || studentId == 'temp') {
+        throw Exception('Invalid student ID. Cannot delete.');
+      }
+
+      // Delete directly using the ID - Supabase will handle the deletion
+      final deleteResponse = await supabase
+          .from('students')
+          .delete()
+          .eq('id', studentId)
+          .select();
+
+      // Verify deletion was successful - should return the deleted row(s)
+      if (deleteResponse.isEmpty) {
+        throw Exception('Failed to delete student: No record found with id "$studentId" or deletion was blocked.');
+      }
+    } catch (e) {
+      final errorString = e.toString();
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('Table "students" does not exist in the database. Please create it first in Supabase.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "students" table\n'
+            '3. Enable DELETE policy for authenticated users\n'
+            '4. Make sure the policy allows: DELETE operations\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: Cannot delete student. It may have dependent records. Please delete related records first. Error: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Student not found with id: $studentId. Cannot delete.');
+      } else {
+        throw Exception('Error deleting student: $errorString');
+      }
+    }
+  }
+
+  /// Delete a teacher
+  Future<void> deleteTeacher(String teacherId) async {
+    try {
+      // Verify user is authenticated
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      // Validate ID is provided
+      if (teacherId.isEmpty || teacherId == 'temp') {
+        throw Exception('Invalid teacher ID. Cannot delete.');
+      }
+
+      // Delete directly using the ID - Supabase will handle the deletion
+      final deleteResponse = await supabase
+          .from('teachers')
+          .delete()
+          .eq('id', teacherId)
+          .select();
+
+      // Verify deletion was successful - should return the deleted row(s)
+      if (deleteResponse.isEmpty) {
+        throw Exception('Failed to delete teacher: No record found with id "$teacherId" or deletion was blocked.');
+      }
+    } catch (e) {
+      final errorString = e.toString();
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('Table "teachers" does not exist in the database. Please create it first in Supabase.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "teachers" table\n'
+            '3. Enable DELETE policy for authenticated users\n'
+            '4. Make sure the policy allows: DELETE operations\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: Cannot delete teacher. It may have dependent records. Please delete related records first. Error: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Teacher not found with id: $teacherId. Cannot delete.');
+      } else {
+        throw Exception('Error deleting teacher: $errorString');
+      }
     }
   }
 

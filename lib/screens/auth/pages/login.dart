@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:project/screens/auth/services/auth_service.dart';
+import 'package:project/services/database_service.dart';
 import 'package:project/widgets/auth_button.dart';
 import 'package:project/widgets/auth_text_field.dart';
 import 'package:project/utils/app_colors.dart';
@@ -13,8 +14,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // get auth service
+  // get auth service and database service
   final AuthService authService = AuthService();
+  final DatabaseService databaseService = DatabaseService();
 
   //text fields controllers
   final TextEditingController emailController = TextEditingController();
@@ -50,6 +52,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Check if login was successful
       if (response.session != null) {
+        // Create a student record from the logged-in user
+        // This happens in the background and won't block navigation
+        databaseService.createStudentFromCurrentUser().then((_) {
+          // Student created successfully (or already exists)
+        }).catchError((error) {
+          // Silently handle errors - table might not exist yet
+          print('Note: Student creation from login skipped: $error');
+        });
+        
         // AuthGate will automatically navigate to HomeScreen
         // No need for manual navigation
       }
