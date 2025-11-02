@@ -588,32 +588,29 @@ class DatabaseService {
         throw Exception('User not authenticated. Please log in again.');
       }
 
-      // First, verify the opportunity exists and get its actual ID from database
-      final existingOpportunity = await supabase
-          .from('volunteering_opportunities')
-          .select('id')
-          .eq('id', volunteering.id)
-          .maybeSingle();
-
-      if (existingOpportunity == null) {
-        throw Exception('Volunteering opportunity not found with id: ${volunteering.id}. Cannot update.');
+      // Validate ID is provided
+      if (volunteering.id.isEmpty || volunteering.id == 'temp') {
+        throw Exception('Invalid volunteering opportunity ID. Cannot update.');
       }
 
-      final actualOpportunityId = existingOpportunity['id'].toString();
-      
+      // Prepare update data - exclude enrolled_count as it's typically computed/auto-managed
+      // Also exclude id, created_at, updated_at (let DB handle timestamps)
       final opportunityData = <String, dynamic>{
         'title': volunteering.title,
         'description': volunteering.description,
         'location': volunteering.location,
         'icon_name': volunteering.iconName,
         'color': volunteering.color,
-        'enrolled_count': volunteering.enrolledCount,
+        // Note: enrolled_count is typically computed from enrollments, so we don't update it manually
+        // If your schema requires it, uncomment the line below:
+        // 'enrolled_count': volunteering.enrolledCount,
       };
       
+      // Update directly using the ID from the model
       final response = await supabase
           .from('volunteering_opportunities')
           .update(opportunityData)
-          .eq('id', actualOpportunityId)
+          .eq('id', volunteering.id)
           .select()
           .single();
 
@@ -634,6 +631,8 @@ class DatabaseService {
             'Error details: $errorString');
       } else if (errorString.contains('violates') || errorString.contains('constraint')) {
         throw Exception('Database constraint violation: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Volunteering opportunity not found with id: ${volunteering.id}. Cannot update.');
       } else {
         throw Exception('Error updating volunteering opportunity: $errorString');
       }
@@ -649,41 +648,21 @@ class DatabaseService {
         throw Exception('User not authenticated. Please log in again.');
       }
 
-      // First verify the opportunity exists and get its actual ID from database
-      final checkResponse = await supabase
-          .from('volunteering_opportunities')
-          .select('id, title')
-          .eq('id', opportunityId)
-          .maybeSingle();
-
-      if (checkResponse == null) {
-        throw Exception('Volunteering opportunity not found with id: $opportunityId. Cannot delete.');
+      // Validate ID is provided
+      if (opportunityId.isEmpty || opportunityId == 'temp') {
+        throw Exception('Invalid volunteering opportunity ID. Cannot delete.');
       }
 
-      final actualOpportunityId = checkResponse['id'].toString();
-      final opportunityTitle = checkResponse['title'] ?? 'Unknown';
-
-      // Delete the opportunity and verify it was deleted
+      // Delete directly using the ID - Supabase will handle the deletion
       final deleteResponse = await supabase
           .from('volunteering_opportunities')
           .delete()
-          .eq('id', actualOpportunityId)
+          .eq('id', opportunityId)
           .select();
 
-      // Verify deletion was successful - should return the deleted row
+      // Verify deletion was successful - should return the deleted row(s)
       if (deleteResponse.isEmpty) {
-        throw Exception('Failed to delete volunteering opportunity "$opportunityTitle": Deletion returned no confirmation. The opportunity may have already been deleted or deletion was blocked.');
-      }
-
-      // Double check: verify it's actually gone
-      final verifyDelete = await supabase
-          .from('volunteering_opportunities')
-          .select('id')
-          .eq('id', actualOpportunityId)
-          .maybeSingle();
-
-      if (verifyDelete != null) {
-        throw Exception('Warning: Volunteering opportunity "$opportunityTitle" still exists after deletion attempt. Deletion may have been blocked.');
+        throw Exception('Failed to delete volunteering opportunity: No record found with id "$opportunityId" or deletion was blocked.');
       }
     } catch (e) {
       final errorString = e.toString();
@@ -696,7 +675,9 @@ class DatabaseService {
             '4. Make sure the policy allows: DELETE operations\n\n'
             'Error details: $errorString');
       } else if (errorString.contains('violates') || errorString.contains('constraint')) {
-        throw Exception('Database constraint violation: $errorString');
+        throw Exception('Database constraint violation: Cannot delete volunteering opportunity. It may have dependent records (e.g., enrollments). Please delete related records first. Error: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Volunteering opportunity not found with id: $opportunityId. Cannot delete.');
       } else {
         throw Exception('Error deleting volunteering opportunity: $errorString');
       }
@@ -712,19 +693,12 @@ class DatabaseService {
         throw Exception('User not authenticated. Please log in again.');
       }
 
-      // First, verify the enrollment exists and get its actual ID from database
-      final existingEnrollment = await supabase
-          .from('volunteering_enrollment')
-          .select('id')
-          .eq('id', enrollment.id)
-          .maybeSingle();
-
-      if (existingEnrollment == null) {
-        throw Exception('Volunteering enrollment not found with id: ${enrollment.id}. Cannot update.');
+      // Validate ID is provided
+      if (enrollment.id.isEmpty || enrollment.id == 'temp') {
+        throw Exception('Invalid volunteering enrollment ID. Cannot update.');
       }
 
-      final actualEnrollmentId = existingEnrollment['id'].toString();
-      
+      // Prepare update data - exclude id, created_at, updated_at, enrolled_at (let DB handle timestamps)
       final enrollmentData = <String, dynamic>{
         'user_id': enrollment.userId,
         'user_name': enrollment.userName,
@@ -733,10 +707,11 @@ class DatabaseService {
         'opportunity_title': enrollment.opportunityTitle,
       };
       
+      // Update directly using the ID from the model
       final response = await supabase
           .from('volunteering_enrollment')
           .update(enrollmentData)
-          .eq('id', actualEnrollmentId)
+          .eq('id', enrollment.id)
           .select()
           .single();
 
@@ -757,6 +732,8 @@ class DatabaseService {
             'Error details: $errorString');
       } else if (errorString.contains('violates') || errorString.contains('constraint')) {
         throw Exception('Database constraint violation: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Volunteering enrollment not found with id: ${enrollment.id}. Cannot update.');
       } else {
         throw Exception('Error updating volunteering enrollment: $errorString');
       }
@@ -772,42 +749,21 @@ class DatabaseService {
         throw Exception('User not authenticated. Please log in again.');
       }
 
-      // First verify the enrollment exists and get its actual ID from database
-      final checkResponse = await supabase
-          .from('volunteering_enrollment')
-          .select('id, user_name, opportunity_title')
-          .eq('id', enrollmentId)
-          .maybeSingle();
-
-      if (checkResponse == null) {
-        throw Exception('Volunteering enrollment not found with id: $enrollmentId. Cannot delete.');
+      // Validate ID is provided
+      if (enrollmentId.isEmpty || enrollmentId == 'temp') {
+        throw Exception('Invalid volunteering enrollment ID. Cannot delete.');
       }
 
-      final actualEnrollmentId = checkResponse['id'].toString();
-      final userName = checkResponse['user_name'] ?? 'Unknown';
-      final opportunityTitle = checkResponse['opportunity_title'] ?? 'Unknown';
-
-      // Delete the enrollment and verify it was deleted
+      // Delete directly using the ID - Supabase will handle the deletion
       final deleteResponse = await supabase
           .from('volunteering_enrollment')
           .delete()
-          .eq('id', actualEnrollmentId)
+          .eq('id', enrollmentId)
           .select();
 
-      // Verify deletion was successful - should return the deleted row
+      // Verify deletion was successful - should return the deleted row(s)
       if (deleteResponse.isEmpty) {
-        throw Exception('Failed to delete enrollment for "$userName" in "$opportunityTitle": Deletion returned no confirmation. The enrollment may have already been deleted or deletion was blocked.');
-      }
-
-      // Double check: verify it's actually gone
-      final verifyDelete = await supabase
-          .from('volunteering_enrollment')
-          .select('id')
-          .eq('id', actualEnrollmentId)
-          .maybeSingle();
-
-      if (verifyDelete != null) {
-        throw Exception('Warning: Enrollment still exists after deletion attempt. Deletion may have been blocked.');
+        throw Exception('Failed to delete volunteering enrollment: No record found with id "$enrollmentId" or deletion was blocked.');
       }
     } catch (e) {
       final errorString = e.toString();
@@ -820,7 +776,9 @@ class DatabaseService {
             '4. Make sure the policy allows: DELETE operations\n\n'
             'Error details: $errorString');
       } else if (errorString.contains('violates') || errorString.contains('constraint')) {
-        throw Exception('Database constraint violation: $errorString');
+        throw Exception('Database constraint violation: Cannot delete volunteering enrollment. Error: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Volunteering enrollment not found with id: $enrollmentId. Cannot delete.');
       } else {
         throw Exception('Error deleting volunteering enrollment: $errorString');
       }
