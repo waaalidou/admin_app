@@ -12,6 +12,8 @@ import 'package:project/screens/home/pages/detail_list_page.dart';
 import 'package:project/screens/home/pages/settings_page.dart';
 import 'package:project/screens/home/pages/notifications_page.dart';
 import 'package:project/screens/home/pages/help_support_page.dart';
+import 'package:project/screens/home/pages/suggestions_page.dart';
+import 'package:project/models/suggestion_model.dart';
 
 class _CardData {
   final String title;
@@ -39,6 +41,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<ClubModel> _clubs = [];
   List<VolunteeringOpportunityModel> _volunteeringOpportunities = [];
   List<VolunteeringEnrollmentModel> _volunteeringEnrollments = [];
+  List<SuggestionModel> _suggestions = [];
   bool _isLoading = true;
 
   @override
@@ -55,6 +58,7 @@ class _DashboardPageState extends State<DashboardPage> {
       final clubs = await _dbService.getClubes();
       final volunteeringOpportunities = await _dbService.getVolunteeringOpportunities();
       final volunteeringEnrollments = await _dbService.getVolunteeringEnrollments();
+      final suggestions = await _dbService.getSuggestions();
 
       setState(() {
         _students = students;
@@ -63,6 +67,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _clubs = clubs;
         _volunteeringOpportunities = volunteeringOpportunities;
         _volunteeringEnrollments = volunteeringEnrollments;
+        _suggestions = suggestions;
         _isLoading = false;
       });
     } catch (e) {
@@ -334,7 +339,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         mainAxisSpacing: 16,
                         childAspectRatio: 1.68,
                       ),
-                      itemCount: 6,
+                      itemCount: 7,
                       itemBuilder: (context, index) {
                         final cards = [
                           _CardData(
@@ -378,6 +383,18 @@ class _DashboardPageState extends State<DashboardPage> {
                             Icons.person_add_rounded,
                             const Color(0xFF9C27B0),
                             () => _navigateToDetail('Volunteering Enrollments', _volunteeringEnrollments, 'volunteering_enrollment'),
+                          ),
+                          _CardData(
+                            'Suggestions',
+                            '${_suggestions.length}',
+                            Icons.lightbulb_rounded,
+                            const Color(0xFFFF9800),
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SuggestionsPage(),
+                              ),
+                            ),
                           ),
                         ];
                         return TweenAnimationBuilder<double>(

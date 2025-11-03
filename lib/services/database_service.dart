@@ -6,6 +6,7 @@ import 'package:project/models/course_model.dart';
 import 'package:project/models/club_model.dart';
 import 'package:project/models/volunteering_opportunity_model.dart';
 import 'package:project/models/volunteering_enrollment_model.dart';
+import 'package:project/models/suggestion_model.dart';
 
 class DatabaseService {
   final SupabaseClient supabase = Supabase.instance.client;
@@ -1076,6 +1077,123 @@ class DatabaseService {
         throw Exception('Volunteering enrollment not found with id: $enrollmentId. Cannot delete.');
       } else {
         throw Exception('Error deleting volunteering enrollment: $errorString');
+      }
+    }
+  }
+
+  // ==================== SUGGESTIONS ====================
+
+  /// Get all suggestions
+  Future<List<SuggestionModel>> getSuggestions() async {
+    try {
+      final response = await supabase
+          .from('suggestions')
+          .select()
+          .order('created_at', ascending: false);
+
+      if (response.isEmpty) {
+        return [];
+      }
+
+      return (response as List)
+          .map((json) => SuggestionModel.fromJson(json))
+          .toList();
+    } catch (e) {
+      // Return empty list if table doesn't exist
+      return [];
+    }
+  }
+
+  /// Update suggestion status
+  Future<SuggestionModel> updateSuggestionStatus(String suggestionId, String status) async {
+    try {
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      if (suggestionId.isEmpty || suggestionId == 'temp') {
+        throw Exception('Invalid suggestion ID. Cannot update.');
+      }
+
+      // Validate status value
+      final validStatuses = ['pending', 'reviewed', 'approved', 'rejected'];
+      if (!validStatuses.contains(status.toLowerCase())) {
+        throw Exception('Invalid status value. Must be one of: ${validStatuses.join(", ")}');
+      }
+
+      // Prepare update data with status and updated timestamp
+      final updateData = <String, dynamic>{
+        'status': status.toLowerCase(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      // Update the suggestion in the database
+      final response = await supabase
+          .from('suggestions')
+          .update(updateData)
+          .eq('id', suggestionId)
+          .select()
+          .single();
+
+      if (response.isEmpty) {
+        throw Exception('Failed to update suggestion: No record found with id "$suggestionId"');
+      }
+
+      return SuggestionModel.fromJson(response);
+    } catch (e) {
+      final errorString = e.toString();
+      
+      // Check for specific error types
+      if (errorString.contains('relation') && errorString.contains('does not exist')) {
+        throw Exception('The suggestions table does not exist in the database. Please create it first.');
+      } else if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS') || errorString.contains('row-level security')) {
+        throw Exception('PERMISSION DENIED: Row Level Security (RLS) is blocking this operation.\n\n'
+            'Please check your Supabase dashboard:\n'
+            '1. Go to Authentication > Policies\n'
+            '2. Find the "suggestions" table\n'
+            '3. Enable UPDATE policy for authenticated users\n'
+            '4. Make sure the policy allows: UPDATE operations on status and updated_at fields\n\n'
+            'Error details: $errorString');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Suggestion not found with id: $suggestionId');
+      } else if (errorString.contains('violates') || errorString.contains('constraint')) {
+        throw Exception('Database constraint violation: $errorString');
+      } else {
+        throw Exception('Error updating suggestion status: $errorString');
+      }
+    }
+  }
+
+  /// Delete a suggestion
+  Future<void> deleteSuggestion(String suggestionId) async {
+    try {
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      if (suggestionId.isEmpty || suggestionId == 'temp') {
+        throw Exception('Invalid suggestion ID. Cannot delete.');
+      }
+
+      final deleteResponse = await supabase
+          .from('suggestions')
+          .delete()
+          .eq('id', suggestionId)
+          .select();
+
+      if (deleteResponse.isEmpty) {
+        throw Exception('Failed to delete suggestion: No record found with id "$suggestionId"');
+      }
+    } catch (e) {
+      final errorString = e.toString();
+      if (errorString.contains('permission') || errorString.contains('policy') || errorString.contains('RLS')) {
+        throw Exception('Database permission denied. Please check Row Level Security policies.');
+      } else if (errorString.contains('No rows found') || errorString.contains('not found')) {
+        throw Exception('Suggestion not found with id: $suggestionId');
+      } else {
+        throw Exception('Error deleting suggestion: $errorString');
       }
     }
   }
